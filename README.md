@@ -4,75 +4,106 @@
   <img src="mobile/assets/images/icon.png" alt="CBT Online app icon" width="96" />
 </p>
 
-CBT Online is a computer-based test app with an Expo mobile client and a Bun/Express API. The API serves quiz questions and scores submitted answers.
+CBT Online is a computer-based test app with an Expo mobile client and a Bun, Express, and PostgreSQL backend. Students can take a timed multiple-choice quiz; admins can create, edit, and delete questions.
 
 ## Project layout
 
-- `backend/` — Express API written in TypeScript
-- `mobile/` — Expo and React Native app using Expo Router
+- `backend/` — Express API, Drizzle ORM schema, and PostgreSQL migrations
+- `mobile/` — Expo and React Native app with Expo Router
 
 ## Requirements
 
-- [Bun](https://bun.sh/) for installing dependencies and running both projects
+- [Bun](https://bun.sh/) for dependencies and backend commands
+- PostgreSQL
 - An Android or iOS device, emulator, or web browser for the Expo app
 
-## Initialize and run
+## Initialize the project
 
-Install dependencies in each project directory:
+### 1. Set up PostgreSQL
+
+Create a PostgreSQL database named `cbt_db`. For example, using `psql`:
+
+```sql
+CREATE DATABASE cbt_db;
+```
+
+The backend defaults to `postgres://postgres:postgres@localhost:5432/cbt_db`. If your local PostgreSQL credentials or connection details differ, create `backend/.env` and set:
+
+```dotenv
+DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/cbt_db
+```
+
+Run the initial schema migration:
 
 ```bash
 cd backend
-bun install / npm install
-
-cd ../mobile
-bun install / npm install
+bun install
+bun run db:migrate
 ```
 
-Configure the mobile app to reach the API. Create `mobile/.env` with:
+### 2. Configure and start the backend
 
-```dotenv
-EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_ADDRESS:3000/api
-```
-
-Replace `YOUR_COMPUTER_ADDRESS` with an address reachable from the device running the app. For a physical device, use your computer's local network IP and keep both devices on the same network. For an emulator, use the host address supported by that emulator. The API listens on port `3000`.
-
-Start the API in one terminal:
+The API listens on port `3000` and binds to `0.0.0.0` so devices on your local network can reach it.
 
 ```bash
 cd backend
 bun run server
 ```
 
-Start Expo in another terminal:
+### 3. Configure and start the mobile app
+
+Create `mobile/.env` with the API base URL:
+
+```dotenv
+EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_ADDRESS:3000/api
+```
+
+Use `localhost` if the app runs on the same computer. For a physical device, use your computer's local network IP and keep both devices on the same network. For an emulator, use the host address supported by that emulator.
+
+Install dependencies and start Expo:
 
 ```bash
 cd mobile
+bun install
 bun run start
 ```
 
-Use the Expo terminal to open the app on a device, emulator, or web. If Expo Go cannot run the project's installed SDK, use a compatible development build.
+Open the app from the Expo terminal on a device, emulator, or web browser. Restart Expo after changing `.env` so it reloads the API URL. If Expo Go is incompatible with the installed SDK or native modules, use a compatible development build.
 
-> [!NOTE]
-> Restart Expo after changing `EXPO_PUBLIC_API_URL` so the updated environment value is loaded.
+## API routes
 
-## API
+All routes use the `/api` prefix.
 
-The backend currently provides:
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/questions` | List quiz questions without answer keys |
+| `POST` | `/api/submit` | Submit answers and return score, correct count, and question count |
+| `GET` | `/api/admin/questions` | List questions including answer keys |
+| `POST` | `/api/admin/questions` | Create a question |
+| `PUT` | `/api/admin/questions/:id` | Update a question |
+| `DELETE` | `/api/admin/questions/:id` | Delete a question |
 
-- `GET /api/questions` — returns quiz questions without answer keys
-- `POST /api/submit` — accepts `{ "answers": { "1": "A" } }` and returns the score, correct answer count, and total questions
+Submit answers as JSON, for example:
+
+```json
+{ "answers": { "1": "A", "2": "C" } }
+```
+
+The admin routes currently have no authentication; restrict access before exposing the API beyond local development.
 
 ## Useful commands
 
+Run these from their respective directories:
+
 ```bash
-# Backend type check
-cd backend && bun run typecheck
+# Backend
+bun run typecheck
+bun run db:generate  # generate a migration after changing the schema
+bun run db:migrate
 
-# Mobile lint
-cd mobile && bun run lint
-
-# Start Expo for a specific target
-cd mobile && bun run android
-cd mobile && bun run ios
-cd mobile && bun run web
+# Mobile
+bun run lint
+bun run android
+bun run ios
+bun run web
 ```

@@ -78,14 +78,22 @@ export default function QuizScreen() {
         params: { resultData: JSON.stringify(response.data) },
       });
     } catch {
-      Alert.alert("Error", "Gagal mengirimkan jawaban.");
+      Alert.alert("Error", "Gagal mengirimkan jawaban ke server.");
     }
   };
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color="#007bff" />
+      </View>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <View style={styles.center}>
+        <Text>Belum ada soal yang tersedia.</Text>
       </View>
     );
   }

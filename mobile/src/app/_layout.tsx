@@ -20,6 +20,7 @@ export default function RootLayout() {
           gestureEnabled: false,
         }}
       />
+      <Stack.Screen name="admin" options={{ title: "Kelola Soal (Admin)" }} />
     </Stack>
   );
 }

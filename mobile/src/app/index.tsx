@@ -1,3 +1,4 @@
+import React from "react";
 import { View, Text, Button, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -8,13 +9,17 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Ujian CBT Online</Text>
       <Text style={styles.subtitle}>Ketentuan Ujian:</Text>
-      <Text style={styles.info}>
-        • Jumlah Soal: 10 Soal (Pilihan Ganda A-D)
-      </Text>
-      <Text style={styles.info}>• Bobot Nilai: Benar = 10, Salah = 0</Text>
+      <Text style={styles.info}>• Pilihan Ganda A-D</Text>
+      <Text style={styles.info}>• Nilai berbasis jumlah total soal</Text>
       <Text style={styles.info}>• Waktu: 60 Menit</Text>
-      <View style={{ marginTop: 24 }}>
+
+      <View style={{ marginTop: 24, gap: 10, width: "100%" }}>
         <Button title="Mulai Ujian" onPress={() => router.push("/quiz")} />
+        <Button
+          title="Kelola Soal (Admin)"
+          color="#6c757d"
+          onPress={() => router.push("/admin")}
+        />
       </View>
     </View>
   );
