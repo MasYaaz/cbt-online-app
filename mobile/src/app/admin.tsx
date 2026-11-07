@@ -9,8 +9,13 @@ import {
   Alert,
   Modal,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as DocumentPicker from "expo-document-picker";
+import { Ionicons } from "@expo/vector-icons";
 import API from "../services/api";
+import { Theme } from "../constants/theme";
 
 interface QuestionItem {
   id: number;
@@ -26,7 +31,9 @@ export default function AdminScreen() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
 
+  // Form State
   const [questionText, setQuestionText] = useState("");
   const [optA, setOptA] = useState("");
   const [optB, setOptB] = useState("");
@@ -43,6 +50,44 @@ export default function AdminScreen() {
   useEffect(() => {
     fetchQuestions();
   }, []);
+
+  const handleImportCSV = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/csv", "text/comma-separated-values", "application/csv"],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const file = result.assets[0];
+      const formData = new FormData();
+      formData.append("file", {
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType || "text/csv",
+      } as any);
+
+      setUploading(true);
+      const response = await API.post("/admin/questions/import-csv", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setUploading(false);
+      Alert.alert(
+        "Sukses",
+        response.data.message || "Berhasil mengimpor soal!",
+      );
+      fetchQuestions();
+    } catch (error: any) {
+      setUploading(false);
+      const errMsg =
+        error.response?.data?.error || "Gagal mengunggah file CSV.";
+      Alert.alert("Error", errMsg);
+    }
+  };
 
   const openModal = (item?: QuestionItem) => {
     if (item) {
@@ -108,170 +153,361 @@ export default function AdminScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.btnAdd} onPress={() => openModal()}>
-        <Text style={styles.btnText}>+ Tambah Soal Baru</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        data={questions}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item, index }) => (
-          <View style={styles.card}>
-            <Text style={styles.qText}>
-              {index + 1}. {item.question}
-            </Text>
-            <Text style={styles.optText}>
-              A: {item.optionA} | B: {item.optionB}
-            </Text>
-            <Text style={styles.optText}>
-              C: {item.optionC} | D: {item.optionD}
-            </Text>
-            <Text style={styles.ansText}>Kunci Jawaban: {item.answer}</Text>
-
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={styles.btnEdit}
-                onPress={() => openModal(item)}
-              >
-                <Text style={{ color: "#fff" }}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.btnDelete}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Text style={{ color: "#fff" }}>Hapus</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      />
-
-      <Modal visible={modalVisible} animationType="slide">
-        <ScrollView style={styles.modalContent}>
-          <Text style={styles.modalTitle}>
-            {editingId ? "Edit Soal" : "Tambah Soal Baru"}
-          </Text>
-
-          <Text style={styles.label}>Pertanyaan:</Text>
-          <TextInput
-            style={styles.input}
-            multiline
-            value={questionText}
-            onChangeText={setQuestionText}
-          />
-
-          <Text style={styles.label}>Pilihan A:</Text>
-          <TextInput style={styles.input} value={optA} onChangeText={setOptA} />
-
-          <Text style={styles.label}>Pilihan B:</Text>
-          <TextInput style={styles.input} value={optB} onChangeText={setOptB} />
-
-          <Text style={styles.label}>Pilihan C:</Text>
-          <TextInput style={styles.input} value={optC} onChangeText={setOptC} />
-
-          <Text style={styles.label}>Pilihan D:</Text>
-          <TextInput style={styles.input} value={optD} onChangeText={setOptD} />
-
-          <Text style={styles.label}>Kunci Jawaban:</Text>
-          <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
-            {(["A", "B", "C", "D"] as const).map((key) => (
-              <TouchableOpacity
-                key={key}
-                style={[
-                  styles.keyBadge,
-                  answerKey === key && styles.keySelected,
-                ]}
-                onPress={() => setAnswerKey(key)}
-              >
-                <Text style={{ color: answerKey === key ? "#fff" : "#000" }}>
-                  {key}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginTop: 20,
-              marginBottom: 40,
-            }}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Top Action Bar */}
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Tambah Soal Manual"
+            activeOpacity={0.8}
+            style={[
+              styles.btnAction,
+              { backgroundColor: Theme.colors.primary },
+            ]}
+            onPress={() => openModal()}
           >
-            <TouchableOpacity
-              style={[
-                styles.btnAdd,
-                { backgroundColor: "#6c757d", flex: 1, marginRight: 5 },
-              ]}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.btnText}>Batal</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnAdd, { flex: 1, marginLeft: 5 }]}
-              onPress={handleSave}
-            >
-              <Text style={styles.btnText}>Simpan</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </Modal>
-    </View>
+            <Ionicons
+              name="add-circle-outline"
+              size={18}
+              color="#fff"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.btnActionText}>Tambah Manual</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Import Soal dari CSV"
+            activeOpacity={0.8}
+            disabled={uploading}
+            style={[
+              styles.btnAction,
+              { backgroundColor: Theme.colors.success },
+            ]}
+            onPress={handleImportCSV}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={18}
+                  color="#fff"
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.btnActionText}>Import CSV</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={questions}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          renderItem={({ item, index }) => (
+            <View style={styles.card}>
+              <Text style={styles.qText}>
+                {index + 1}. {item.question}
+              </Text>
+              <View style={styles.optGrid}>
+                <Text style={styles.optText}>
+                  <Text style={styles.optKey}>A:</Text> {item.optionA}
+                </Text>
+                <Text style={styles.optText}>
+                  <Text style={styles.optKey}>B:</Text> {item.optionB}
+                </Text>
+                <Text style={styles.optText}>
+                  <Text style={styles.optKey}>C:</Text> {item.optionC}
+                </Text>
+                <Text style={styles.optText}>
+                  <Text style={styles.optKey}>D:</Text> {item.optionD}
+                </Text>
+              </View>
+
+              <View style={styles.cardFooter}>
+                <View style={styles.ansBadge}>
+                  <Text style={styles.ansText}>
+                    Kunci:{" "}
+                    <Text style={{ fontWeight: "800" }}>{item.answer}</Text>
+                  </Text>
+                </View>
+
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    style={styles.btnEdit}
+                    onPress={() => openModal(item)}
+                  >
+                    <Ionicons
+                      name="pencil-outline"
+                      size={14}
+                      color={Theme.colors.textPrimary}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.actionText}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    style={styles.btnDelete}
+                    onPress={() => handleDelete(item.id)}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={14}
+                      color={Theme.colors.error}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[styles.actionText, { color: Theme.colors.error }]}
+                    >
+                      Hapus
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+        />
+
+        {/* Modal Form Editor */}
+        <Modal
+          visible={modalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView
+            style={{ flex: 1, backgroundColor: Theme.colors.background }}
+          >
+            <ScrollView style={styles.modalContent}>
+              <Text style={styles.modalTitle}>
+                {editingId ? "Edit Soal" : "Tambah Soal Baru"}
+              </Text>
+
+              <Text style={styles.label}>Pertanyaan</Text>
+              <TextInput
+                style={[styles.input, { minHeight: 80 }]}
+                multiline
+                placeholder="Tuliskan pertanyaan di sini..."
+                value={questionText}
+                onChangeText={setQuestionText}
+              />
+
+              <Text style={styles.label}>Pilihan A</Text>
+              <TextInput
+                style={styles.input}
+                value={optA}
+                onChangeText={setOptA}
+              />
+
+              <Text style={styles.label}>Pilihan B</Text>
+              <TextInput
+                style={styles.input}
+                value={optB}
+                onChangeText={setOptB}
+              />
+
+              <Text style={styles.label}>Pilihan C</Text>
+              <TextInput
+                style={styles.input}
+                value={optC}
+                onChangeText={setOptC}
+              />
+
+              <Text style={styles.label}>Pilihan D</Text>
+              <TextInput
+                style={styles.input}
+                value={optD}
+                onChangeText={setOptD}
+              />
+
+              <Text style={styles.label}>Kunci Jawaban</Text>
+              <View style={styles.keyBadgeRow}>
+                {(["A", "B", "C", "D"] as const).map((key) => (
+                  <TouchableOpacity
+                    key={key}
+                    accessibilityRole="button"
+                    style={[
+                      styles.keyBadge,
+                      answerKey === key && styles.keySelected,
+                    ]}
+                    onPress={() => setAnswerKey(key)}
+                  >
+                    <Text
+                      style={[
+                        styles.keyBadgeText,
+                        answerKey === key && styles.keySelectedText,
+                      ]}
+                    >
+                      {key}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.btnCancel}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.btnCancelText}>Batal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnSave} onPress={handleSave}>
+                  <Text style={styles.btnSaveText}>Simpan</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f5f5f5" },
-  btnAdd: {
-    backgroundColor: "#007bff",
-    padding: 12,
-    borderRadius: 8,
+  safeArea: { flex: 1, backgroundColor: Theme.colors.background },
+  container: { flex: 1, padding: Theme.spacing.md },
+  topActions: {
+    flexDirection: "row",
+    gap: Theme.spacing.sm,
+    marginBottom: Theme.spacing.md,
+  },
+  btnAction: {
+    flex: 1,
+    flexDirection: "row",
+    minHeight: Theme.touchTarget.minHeight,
+    borderRadius: Theme.borderRadius.md,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
   },
-  btnText: { color: "#fff", fontWeight: "bold" },
+  btnActionText: {
+    color: Theme.colors.onPrimary,
+    fontWeight: "700",
+    fontSize: 14,
+  },
   card: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 12,
-    elevation: 1,
+    backgroundColor: Theme.colors.surface,
+    padding: Theme.spacing.md,
+    borderRadius: Theme.borderRadius.md,
+    marginBottom: Theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
   },
-  qText: { fontSize: 16, fontWeight: "bold", marginBottom: 6 },
-  optText: { fontSize: 13, color: "#555" },
-  ansText: { fontSize: 13, fontWeight: "bold", color: "#28a745", marginTop: 4 },
-  actionRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  qText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Theme.colors.textPrimary,
+    marginBottom: Theme.spacing.xs,
+  },
+  optGrid: { gap: 2, marginVertical: Theme.spacing.xs },
+  optText: { fontSize: 13, color: Theme.colors.textSecondary },
+  optKey: { fontWeight: "700", color: Theme.colors.textPrimary },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: Theme.spacing.sm,
+    paddingTop: Theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Theme.colors.border,
+  },
+  ansBadge: {
+    backgroundColor: Theme.colors.successLight,
+    paddingHorizontal: Theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Theme.borderRadius.sm,
+  },
+  ansText: { fontSize: 12, color: Theme.colors.success, fontWeight: "600" },
+  actionRow: { flexDirection: "row", gap: Theme.spacing.xs },
   btnEdit: {
-    backgroundColor: "#ffc107",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Theme.colors.warningLight,
+    paddingHorizontal: Theme.spacing.md,
+    minHeight: 36,
+    borderRadius: Theme.borderRadius.sm,
   },
   btnDelete: {
-    backgroundColor: "#dc3545",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Theme.colors.errorLight,
+    paddingHorizontal: Theme.spacing.md,
+    minHeight: 36,
+    borderRadius: Theme.borderRadius.sm,
   },
-  modalContent: { flex: 1, padding: 20 },
-  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "600", marginTop: 10 },
+  actionText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.colors.textPrimary,
+  },
+  modalContent: { flex: 1, padding: Theme.spacing.lg },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: Theme.colors.textPrimary,
+    marginBottom: Theme.spacing.md,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.colors.textSecondary,
+    marginTop: Theme.spacing.sm,
+  },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 6,
-    padding: 10,
-    backgroundColor: "#fff",
+    borderColor: Theme.colors.border,
+    borderRadius: Theme.borderRadius.sm,
+    padding: Theme.spacing.md,
+    backgroundColor: Theme.colors.surface,
     marginTop: 4,
+    fontSize: 14,
+    color: Theme.colors.textPrimary,
+  },
+  keyBadgeRow: {
+    flexDirection: "row",
+    gap: Theme.spacing.xs,
+    marginVertical: Theme.spacing.sm,
   },
   keyBadge: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 6,
     flex: 1,
+    minHeight: Theme.touchTarget.minHeight,
+    borderWidth: 1.5,
+    borderColor: Theme.colors.border,
+    borderRadius: Theme.borderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Theme.colors.surface,
+  },
+  keySelected: {
+    backgroundColor: Theme.colors.success,
+    borderColor: Theme.colors.success,
+  },
+  keyBadgeText: { fontWeight: "700", color: Theme.colors.textPrimary },
+  keySelectedText: { color: Theme.colors.onPrimary },
+  modalActions: {
+    flexDirection: "row",
+    gap: Theme.spacing.md,
+    marginTop: Theme.spacing.xl,
+    marginBottom: Theme.spacing.xl,
+  },
+  btnCancel: {
+    flex: 1,
+    minHeight: Theme.touchTarget.minHeight,
+    backgroundColor: Theme.colors.surfaceVariant,
+    borderRadius: Theme.borderRadius.md,
+    justifyContent: "center",
     alignItems: "center",
   },
-  keySelected: { backgroundColor: "#28a745", borderColor: "#28a745" },
+  btnCancelText: { fontWeight: "700", color: Theme.colors.secondary },
+  btnSave: {
+    flex: 1,
+    minHeight: Theme.touchTarget.minHeight,
+    backgroundColor: Theme.colors.primary,
+    borderRadius: Theme.borderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  btnSaveText: { fontWeight: "700", color: Theme.colors.onPrimary },
 });

@@ -1,8 +1,21 @@
 import { Stack } from "expo-router";
+import { Theme } from "../constants/theme";
 
 export default function RootLayout() {
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: Theme.colors.surface },
+        headerTitleStyle: {
+          fontWeight: "700",
+          color: Theme.colors.textPrimary,
+          fontSize: 18,
+        },
+        headerTintColor: Theme.colors.primary,
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: Theme.colors.background },
+      }}
+    >
       <Stack.Screen name="index" options={{ title: "Beranda CBT" }} />
       <Stack.Screen
         name="quiz"
@@ -20,7 +33,7 @@ export default function RootLayout() {
           gestureEnabled: false,
         }}
       />
-      <Stack.Screen name="admin" options={{ title: "Kelola Soal (Admin)" }} />
+      <Stack.Screen name="admin" options={{ title: "Kelola Soal" }} />
     </Stack>
   );
 }

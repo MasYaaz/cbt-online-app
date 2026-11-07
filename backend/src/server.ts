@@ -7,6 +7,9 @@ import cors from "cors";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { questions, type NewQuestion } from "./db/schema";
+import multer from "multer";
+import csv from "csv-parser";
+import fs from "fs";
 
 const app: Application = express();
 
@@ -16,6 +19,90 @@ app.use(express.json());
 interface SubmitRequestBody {
   answers?: Record<number, string>;
 }
+
+// Konfigurasi Multer untuk temporary upload folder
+const upload = multer({ dest: "uploads/" });
+
+// ==========================================
+// ENDPOINT ADMIN: IMPORT SOAL DARI CSV
+// ==========================================
+
+// Format CSV yang diharapkan (Header):
+// question,optionA,optionB,optionC,optionD,answer
+app.post(
+  "/api/admin/questions/import-csv",
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "File CSV tidak ditemukan" });
+    }
+
+    const filePath = req.file.path;
+    const newQuestions: NewQuestion[] = [];
+
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on("data", (row) => {
+        // Cleaning & Validasi setiap baris CSV
+        const question = row.question?.trim();
+        const optionA = row.optionA?.trim();
+        const optionB = row.optionB?.trim();
+        const optionC = row.optionC?.trim();
+        const optionD = row.optionD?.trim();
+        const answer = row.answer?.trim()?.toUpperCase();
+
+        if (
+          question &&
+          optionA &&
+          optionB &&
+          optionC &&
+          optionD &&
+          ["A", "B", "C", "D"].includes(answer)
+        ) {
+          newQuestions.push({
+            question,
+            optionA,
+            optionB,
+            optionC,
+            optionD,
+            answer: answer as "A" | "B" | "C" | "D",
+          });
+        }
+      })
+      .on("end", async () => {
+        // Hapus file temporary CSV setelah dibaca
+        fs.unlinkSync(filePath);
+
+        if (newQuestions.length === 0) {
+          return res.status(400).json({
+            error: "Tidak ada data soal valid yang dapat diimpor dari file CSV",
+          });
+        }
+
+        try {
+          // Batch Insert ke database menggunakan Drizzle ORM
+          const inserted = await db
+            .insert(questions)
+            .values(newQuestions)
+            .returning();
+          res.status(201).json({
+            message: `Berhasil mengimpor ${inserted.length} soal baru!`,
+            count: inserted.length,
+          });
+        } catch (err) {
+          console.error("Error Bulk Insert CSV:", err);
+          res
+            .status(500)
+            .json({ error: "Gagal menyimpan data soal dari CSV ke database" });
+        }
+      })
+      .on("error", (err) => {
+        console.error("Error Reading CSV:", err);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        res.status(500).json({ error: "Gagal membaca file CSV" });
+      });
+  },
+);
 
 // ==========================================
 // ENDPOINT PESERTA (EXAM)
